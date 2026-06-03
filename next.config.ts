@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Allow the exe.dev proxy host to reach the dev server.
+  allowedDevOrigins: ["narwhal-kayak.exe.xyz"],
 };
 
 export default nextConfig;
