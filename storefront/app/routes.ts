@@ -26,6 +26,12 @@ export const routes = route({
     show: '/books/:slug',
   },
 
+  // Blog routes (sourced from the MinCMS posts API)
+  blog: {
+    index: '/blog',
+    show: '/blog/:slug',
+  },
+
   // Auth routes
   auth: {
     login: form('login'),

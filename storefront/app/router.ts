@@ -22,6 +22,7 @@ import authForgotPasswordController from './actions/auth/forgot-password/control
 import authLoginController from './actions/auth/login/controller.tsx'
 import authRegisterController from './actions/auth/register/controller.tsx'
 import authResetPasswordController from './actions/auth/reset-password/controller.tsx'
+import blogController from './actions/blog/controller.tsx'
 import booksController from './actions/books/controller.tsx'
 import cartApiController from './actions/cart/api/controller.tsx'
 import cartController from './actions/cart/controller.tsx'
@@ -94,6 +95,7 @@ export function createBookstoreRouter(options?: BookstoreRouterOptions) {
   router.map(routes.contact, contactController)
 
   router.map(routes.books, booksController)
+  router.map(routes.blog, blogController)
   router.map(routes.auth, authController)
   router.map(routes.auth.login, authLoginController)
   router.map(routes.auth.register, authRegisterController)

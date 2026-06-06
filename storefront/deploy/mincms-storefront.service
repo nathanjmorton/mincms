@@ -1,0 +1,23 @@
+# MinCMS Storefront (Remix 3) systemd unit.
+# Install:
+#   sudo cp deploy/mincms-storefront.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now mincms-storefront
+#
+# Provide secrets via the EnvironmentFile (NOT committed). See .env.example.
+[Unit]
+Description=MinCMS Storefront (Remix 3) — consumes the MinCMS headless API, backed by Turso
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=exedev
+WorkingDirectory=/home/exedev/mincms/storefront
+EnvironmentFile=/home/exedev/.config/mincms-storefront/storefront.env
+ExecStart=/home/exedev/node/bin/node --import remix/node-tsx server.ts
+Restart=on-failure
+RestartSec=3
+ReadWritePaths=/home/exedev/mincms/storefront
+
+[Install]
+WantedBy=multi-user.target

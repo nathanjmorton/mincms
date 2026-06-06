@@ -1,6 +1,6 @@
 import { Database } from 'remix/data-table'
 
-import { books, type Book } from './schema.ts'
+import { books, posts, type Book, type Post } from './schema.ts'
 
 /**
  * Catalog sync layer.
@@ -72,6 +72,37 @@ export function productToBook(product: MinCmsProduct): Book {
   }
 }
 
+interface MinCmsPost {
+  id: number
+  title: string
+  slug: string
+  excerpt: string | null
+  content: string | null
+  coverImage: string | null
+  status: string
+  createdAt: string
+  updatedAt: string
+}
+
+/** Map a MinCMS blog post onto the storefront's Post row shape. */
+export function postToRow(post: MinCmsPost): Post {
+  let toEpoch = (value: string) => {
+    let parsed = Date.parse(value)
+    return Number.isFinite(parsed) ? parsed : Date.now()
+  }
+
+  return {
+    id: post.id,
+    slug: post.slug,
+    title: post.title,
+    excerpt: post.excerpt ?? '',
+    content: post.content ?? '',
+    cover_image: post.coverImage && post.coverImage.trim() !== '' ? post.coverImage : '',
+    published_at: toEpoch(post.createdAt),
+    updated_at: toEpoch(post.updatedAt),
+  }
+}
+
 interface RefreshState {
   lastSuccessAt: number
   inFlight: Promise<boolean> | null
@@ -79,55 +110,61 @@ interface RefreshState {
 
 const state: RefreshState = { lastSuccessAt: 0, inFlight: null }
 
-async function fetchProducts(signal: AbortSignal): Promise<MinCmsProduct[]> {
-  let res = await fetch(`${MINCMS_API_URL}/api/products?status=published`, {
+async function fetchList<T>(resource: 'products' | 'posts', signal: AbortSignal): Promise<T[]> {
+  let res = await fetch(`${MINCMS_API_URL}/api/${resource}?status=published`, {
     headers: { Accept: 'application/json' },
     signal,
   })
 
   if (!res.ok) {
-    throw new Error(`MinCMS API responded ${res.status} ${res.statusText}`)
+    throw new Error(`MinCMS API responded ${res.status} ${res.statusText} for /api/${resource}`)
   }
 
-  let body = (await res.json()) as { data?: MinCmsProduct[] }
+  let body = (await res.json()) as { data?: T[] }
   if (!body || !Array.isArray(body.data)) {
-    throw new Error('MinCMS API returned an unexpected payload')
+    throw new Error(`MinCMS API returned an unexpected payload for /api/${resource}`)
   }
   return body.data
 }
 
-/** Reconcile the local `books` cache with the live MinCMS catalog. */
-async function reconcile(db: Database, products: MinCmsProduct[]): Promise<void> {
-  let mapped = products.map(productToBook)
-  let liveSlugs = new Set(mapped.map((b) => b.slug))
+/**
+ * Reconcile a local cache table with a freshly fetched, slug-keyed list.
+ * Generic over the table so products and posts share the same upsert/prune logic.
+ */
+async function reconcileTable<Row extends { id: number; slug: string }>(
+  db: Database,
+  table: any,
+  mapped: Row[],
+): Promise<void> {
+  let liveSlugs = new Set(mapped.map((r) => r.slug))
 
   await db.transaction(async (tx) => {
-    let existing = await tx.findMany(books)
-    let existingBySlug = new Map(existing.map((b) => [b.slug, b]))
+    let existing = (await tx.findMany(table)) as unknown as Row[]
+    let existingBySlug = new Map(existing.map((r) => [r.slug, r]))
 
     // Remove rows that no longer exist in MinCMS (only runs on a good fetch,
     // so the cache is never emptied while the API is down).
     for (let row of existing) {
       if (!liveSlugs.has(row.slug)) {
-        await tx.delete(books, row.id)
+        await tx.delete(table, row.id)
       }
     }
 
-    // Upsert each product by slug.
-    for (let book of mapped) {
-      let prior = existingBySlug.get(book.slug)
-      let { id: _ignored, ...changes } = book
+    // Upsert each row by slug.
+    for (let row of mapped) {
+      let prior = existingBySlug.get(row.slug)
+      let { id: _ignored, ...changes } = row
       if (prior) {
-        await tx.update(books, prior.id, changes)
+        await tx.update(table, prior.id, changes)
       } else {
-        await tx.create(books, book)
+        await tx.create(table, row)
       }
     }
   })
 }
 
 /**
- * Refresh the SQLite catalog cache from MinCMS.
+ * Refresh the SQLite caches (products -> books, posts) from MinCMS.
  *
  * Throttled to one network round-trip per REFRESH_INTERVAL_MS and de-duplicated
  * across concurrent requests. Never throws: on any failure it logs and leaves
@@ -146,13 +183,17 @@ export async function refreshCatalog(db: Database, options?: { force?: boolean }
     let controller = new AbortController()
     let timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
     try {
-      let products = await fetchProducts(controller.signal)
-      await reconcile(db, products)
+      let [products, postList] = await Promise.all([
+        fetchList<MinCmsProduct>('products', controller.signal),
+        fetchList<MinCmsPost>('posts', controller.signal),
+      ])
+      await reconcileTable(db, books, products.map(productToBook))
+      await reconcileTable(db, posts, postList.map(postToRow))
       state.lastSuccessAt = Date.now()
       return true
     } catch (error) {
       console.warn(
-        `[catalog] MinCMS sync failed, serving cached catalog from SQLite: ${
+        `[catalog] MinCMS sync failed, serving cached content from SQLite: ${
           error instanceof Error ? error.message : String(error)
         }`,
       )

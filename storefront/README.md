@@ -43,6 +43,57 @@ All existing UI, cart, search and order code reads from `books` and is unaware o
 the source — the integration is isolated to `app/data/catalog.ts`,
 `app/data/setup.ts`, and `app/middleware/database.ts`.
 
+The blog works the same way: MinCMS `/api/posts` → a `posts` cache table →
+`/blog` and `/blog/:slug` (see `app/actions/blog/`).
+
+## Database (local SQLite vs Turso)
+
+The app picks its driver at startup:
+
+- **`DATABASE_URL` set** → Turso / libSQL via a custom async adapter
+  ([`app/data/turso-adapter.ts`](app/data/turso-adapter.ts)). The framework's
+  built-in SQLite adapter only accepts a *synchronous* driver, so this adapter
+  implements the async `DatabaseAdapter` contract directly while reusing the
+  framework's SQLite SQL compiler — generated SQL stays identical to local dev.
+  Supports transactions and savepoints (used by checkout).
+- **otherwise** → local file-backed `node:sqlite` at `db/bookstore.sqlite`.
+
+Migrations in `db/migrations/` run on startup against whichever driver is active.
+
+Provision a Turso DB:
+
+```bash
+turso db create mincms-storefront
+turso db show mincms-storefront --url            # -> DATABASE_URL
+turso db tokens create mincms-storefront         # -> DATABASE_AUTH_TOKEN
+```
+
+## Deploying
+
+Remix 3 is bundler-free and runs a **long-running Node server** (it compiles
+client assets on demand and uses the `--import remix/node-tsx` loader). The
+natural deploy target is therefore a persistent Node process, not a serverless
+function.
+
+This instance runs on the VM under **systemd**, backed by Turso, on port 8100.
+A sanitized unit file is in [`deploy/mincms-storefront.service`](deploy/mincms-storefront.service):
+
+```bash
+sudo cp deploy/mincms-storefront.service /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl enable --now mincms-storefront
+systemctl status mincms-storefront
+journalctl -u mincms-storefront -f
+```
+
+Provide env via an `EnvironmentFile` (see `.env.example` for the keys:
+`NODE_ENV`, `PORT`, `MINCMS_API_URL`, `DATABASE_URL`, `DATABASE_AUTH_TOKEN`).
+
+> Vercel / serverless note: this framework fits serverless poorly — no build
+> step, on-demand asset compilation with native binaries, a read-only FS (sessions
+> and uploads expect a writable filesystem), and no `--import` loader flag on the
+> function runtime. A long-running server (systemd, a container, Fly.io, Railway,
+> Render, etc.) is the supported path.
+
 ## Running
 
 Requires Node >= 24.3 (uses `node:sqlite` and Remix 3's `node-tsx` loader).

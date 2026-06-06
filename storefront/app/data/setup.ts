@@ -7,29 +7,54 @@ import { createDatabase } from 'remix/data-table'
 import { createMigrationRunner } from 'remix/data-table/migrations'
 import { loadMigrations } from 'remix/data-table/migrations/node'
 import { createSqliteDatabaseAdapter } from 'remix/data-table/sqlite'
+import { createClient, type Client } from '@libsql/client'
 
 import { users } from './schema.ts'
 import { hashPassword } from '../utils/password-hash.ts'
 import { refreshCatalog } from './catalog.ts'
+import { createTursoDatabaseAdapter } from './turso-adapter.ts'
 
-let databaseFilePath: string
+/**
+ * Database driver selection.
+ *
+ * - In production (or any time DATABASE_URL is set) we use Turso / libSQL via an
+ *   async adapter, so the same app runs against a hosted, persistent database.
+ * - Otherwise we fall back to a local file-backed `node:sqlite` database for dev.
+ *
+ * Both speak the same SQLite dialect, so migrations and queries are identical.
+ */
+const tursoUrl = process.env.DATABASE_URL
+const usingTurso = Boolean(tursoUrl) && process.env.NODE_ENV !== 'test'
+
+let databaseFilePath: string | undefined
 let testDatabaseDirectoryPath: string | undefined
-
-if (process.env.NODE_ENV === 'test') {
-  testDatabaseDirectoryPath = fs.mkdtempSync(path.join(os.tmpdir(), 'remix-bookstore-'))
-  databaseFilePath = path.join(testDatabaseDirectoryPath, 'bookstore.sqlite')
-} else {
-  let databaseDirectoryUrl = new URL('../../db/', import.meta.url)
-  databaseFilePath = fileURLToPath(new URL('bookstore.sqlite', databaseDirectoryUrl))
-
-  fs.mkdirSync(fileURLToPath(databaseDirectoryUrl), { recursive: true })
-}
+let sqlite: DatabaseSync | undefined
+let libsql: Client | undefined
 
 const migrationsDirectoryPath = fileURLToPath(new URL('../../db/migrations/', import.meta.url))
 
-const sqlite = new DatabaseSync(databaseFilePath)
-sqlite.exec('PRAGMA foreign_keys = ON')
-const adapter = createSqliteDatabaseAdapter(sqlite)
+let adapter: ReturnType<typeof createSqliteDatabaseAdapter> | ReturnType<typeof createTursoDatabaseAdapter>
+
+if (usingTurso) {
+  libsql = createClient({
+    url: tursoUrl!,
+    authToken: process.env.DATABASE_AUTH_TOKEN,
+  })
+  adapter = createTursoDatabaseAdapter(libsql)
+} else {
+  if (process.env.NODE_ENV === 'test') {
+    testDatabaseDirectoryPath = fs.mkdtempSync(path.join(os.tmpdir(), 'remix-bookstore-'))
+    databaseFilePath = path.join(testDatabaseDirectoryPath, 'bookstore.sqlite')
+  } else {
+    let databaseDirectoryUrl = new URL('../../db/', import.meta.url)
+    databaseFilePath = fileURLToPath(new URL('bookstore.sqlite', databaseDirectoryUrl))
+    fs.mkdirSync(fileURLToPath(databaseDirectoryUrl), { recursive: true })
+  }
+
+  sqlite = new DatabaseSync(databaseFilePath)
+  sqlite.exec('PRAGMA foreign_keys = ON')
+  adapter = createSqliteDatabaseAdapter(sqlite)
+}
 
 export const db = createDatabase(adapter)
 
@@ -50,8 +75,11 @@ export function closeBookstoreDatabase(): void {
     return
   }
 
-  if (sqlite.isOpen) {
+  if (sqlite && sqlite.isOpen) {
     sqlite.close()
+  }
+  if (libsql) {
+    libsql.close()
   }
 
   if (testDatabaseDirectoryPath) {

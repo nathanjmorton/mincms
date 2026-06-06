@@ -294,7 +294,22 @@ export const passwordResetTokens = table({
   },
 })
 
+export const posts = table({
+  name: 'posts',
+  columns: {
+    id: c.integer(),
+    slug: c.text(),
+    title: c.text(),
+    excerpt: c.text(),
+    content: c.text(),
+    cover_image: c.text(),
+    published_at: c.integer(),
+    updated_at: c.integer(),
+  },
+})
+
 export type Book = TableRow<typeof books>
+export type Post = TableRow<typeof posts>
 export type User = TableRow<typeof users>
 export type Order = TableRowWith<typeof orders, { items: OrderItem[] }>
 export type OrderItem = TableRowWith<

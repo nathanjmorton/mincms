@@ -24,6 +24,7 @@ export function Layout(handle: Handle<LayoutProps>) {
             <nav>
               <a href={routes.home.href()}>Home</a>
               <a href={routes.books.index.href()}>Books</a>
+              <a href={routes.blog.index.href()}>Blog</a>
               <a href={routes.about.href()}>About</a>
               <a href={routes.contact.index.href()}>Contact</a>
               <a href={routes.cart.index.href()}>Cart</a>
