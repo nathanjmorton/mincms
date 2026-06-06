@@ -1,0 +1,6 @@
+.vercel
+db/*.sqlite
+db/*.sqlite-*
+tmp/
+*.log
+asset-manifest.json

@@ -110,8 +110,10 @@ writeFileSync(
     runtime: 'nodejs22.x',
     handler: 'api/index.mjs',
     launcherType: 'Nodejs',
-    // Bake the build id into the function env so request-time hrefs match statics.
-    environment: { ASSET_BUILD_ID: BUILD_ID, NODE_ENV: 'production' },
+    // NOTE: do NOT set an `environment` map here — it suppresses Vercel's
+    // injection of project env vars (DATABASE_URL, SESSION_SECRET, ...). The
+    // function resolves asset hrefs from asset-manifest.json at runtime, so it
+    // does not need ASSET_BUILD_ID; only the build step does.
   }),
 )
 
@@ -122,8 +124,33 @@ writeFileSync(
   JSON.stringify({
     version: 3,
     routes: [
+      // Force correct MIME for hashed client assets. Files keep their original
+      // .tsx/.ts/.js extensions (import specifiers inside the bundles reference
+      // each other by those names), so Vercel's extension-based MIME is wrong
+      // (.tsx -> octet-stream) and browsers refuse to execute the modules.
+      // These run BEFORE `handle: filesystem` with `continue: true` so the header
+      // is set, then the static file is served.
+      {
+        src: '/assets/(.*)\\.(tsx|ts|jsx|js|mjs)$',
+        headers: {
+          'content-type': 'text/javascript; charset=utf-8',
+          'cache-control': 'public, max-age=31536000, immutable',
+        },
+        continue: true,
+      },
+      {
+        src: '/assets/(.*)\\.css$',
+        headers: {
+          'content-type': 'text/css; charset=utf-8',
+          'cache-control': 'public, max-age=31536000, immutable',
+        },
+        continue: true,
+      },
+      // Vercel reserves the /api/* path prefix (zero-config functions) and will
+      // 404 it at the platform edge before our catch-all runs. Route it to our
+      // function explicitly, ahead of the filesystem handler.
+      { src: '/api/(.*)', dest: '/index' },
       { handle: 'filesystem' },
-      { src: '/assets/(.*)', headers: { 'cache-control': 'public, max-age=31536000, immutable' }, continue: true },
       { src: '/(.*)', dest: '/index' },
     ],
   }),
