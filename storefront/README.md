@@ -70,29 +70,56 @@ turso db tokens create mincms-storefront         # -> DATABASE_AUTH_TOKEN
 
 ## Deploying
 
-Remix 3 is bundler-free and runs a **long-running Node server** (it compiles
-client assets on demand and uses the `--import remix/node-tsx` loader). The
-natural deploy target is therefore a persistent Node process, not a serverless
-function.
+**Primary: Vercel (serverless).** **Fallback: systemd (long-running).** Both run
+the same source.
 
-This instance runs on the VM under **systemd**, backed by Turso, on port 8100.
-A sanitized unit file is in [`deploy/mincms-storefront.service`](deploy/mincms-storefront.service):
+Remix 3 is bundler-free — in dev it compiles client assets on demand and runs
+TypeScript through the `node-tsx` loader. To make that work on Vercel's serverless
+runtime, [`build.mjs`](build.mjs) produces a Vercel **Build Output API v3** layout:
+
+1. **Precompiles client assets to static files.** It drives the Remix asset
+   server with a fixed `ASSET_BUILD_ID` (so content hashes are deterministic),
+   crawls the *closed* set of chunks for every interactive island + the
+   stylesheet, and writes them to `.vercel/output/static/assets/...` (served by
+   Vercel's CDN). It also writes `asset-manifest.json` mapping each entry to its
+   hashed href + preloads. At request time the function resolves hrefs from the
+   manifest and **never compiles assets** (see
+   [`app/utils/asset-manifest.ts`](app/utils/asset-manifest.ts)).
+2. **Ships the app unbundled** as the function. The launcher
+   [`api/index.mjs`](api/index.mjs) registers the `node-tsx` loader, then
+   [`api/handler.ts`](api/handler.ts) adapts Node `req`/`res` ↔ Web
+   `Request`/`Response` around `router.fetch()`. The server is intentionally NOT
+   esbuild-bundled: islands use `clientEntry(import.meta.url, ...)`, and bundling
+   would collapse every island's module identity into one URL.
+
+Serverless-safe choices used throughout:
+
+- **DB:** `@libsql/client/web` (pure HTTP, no native bindings) against Turso.
+- **Sessions:** cookie session storage (`SESSION_SECRET`) — no server-side store,
+  no writable FS needed.
+- **No file uploads / no admin:** content management lives entirely in MinCMS, so
+  the storefront is read-only over the API (nothing writes files).
+
+Deploy:
+
+```bash
+vercel --prod    # uses vercel.json (buildCommand: node build.mjs, framework: null)
+```
+
+Required Vercel env vars: `DATABASE_URL`, `DATABASE_AUTH_TOKEN`, `SESSION_SECRET`,
+`MINCMS_API_URL` (optional; defaults to the live MinCMS).
+
+### Fallback: systemd
+
+The same code also runs as a long-running server (assets compiled live, local or
+Turso DB). A sanitized unit is in
+[`deploy/mincms-storefront.service`](deploy/mincms-storefront.service):
 
 ```bash
 sudo cp deploy/mincms-storefront.service /etc/systemd/system/
 sudo systemctl daemon-reload && sudo systemctl enable --now mincms-storefront
-systemctl status mincms-storefront
 journalctl -u mincms-storefront -f
 ```
-
-Provide env via an `EnvironmentFile` (see `.env.example` for the keys:
-`NODE_ENV`, `PORT`, `MINCMS_API_URL`, `DATABASE_URL`, `DATABASE_AUTH_TOKEN`).
-
-> Vercel / serverless note: this framework fits serverless poorly — no build
-> step, on-demand asset compilation with native binaries, a read-only FS (sessions
-> and uploads expect a writable filesystem), and no `--import` loader flag on the
-> function runtime. A long-running server (systemd, a container, Fly.io, Railway,
-> Render, etc.) is the supported path.
 
 ## Running
 
@@ -125,8 +152,9 @@ Configure the upstream via env vars (see `.env.example`):
 
 ## Notes / limitations
 
-- Writes (admin "books" CRUD, checkout, orders) persist to the **local SQLite**,
-  not back to MinCMS. To make MinCMS the write target too, point those controllers
-  at `POST/PUT/DELETE /api/products` using `MINCMS_API_KEY`. Catalog is currently
-  read-from-MinCMS, write-locally.
-- Product images are whatever URLs you set in MinCMS.
+- **Content management lives in MinCMS, not here.** The storefront has no admin UI
+  and no file uploads — products and posts are created/edited in MinCMS and read
+  over its API. The only data the storefront writes are customer accounts, carts,
+  and orders (checkout), which are storefront-local.
+- Product/post images are whatever URLs you set in MinCMS. (A future pass could
+  move uploads to S3 presigned URLs on the MinCMS side.)

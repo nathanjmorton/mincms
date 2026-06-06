@@ -7,7 +7,7 @@ import { createDatabase } from 'remix/data-table'
 import { createMigrationRunner } from 'remix/data-table/migrations'
 import { loadMigrations } from 'remix/data-table/migrations/node'
 import { createSqliteDatabaseAdapter } from 'remix/data-table/sqlite'
-import { createClient, type Client } from '@libsql/client'
+import { createClient, type Client } from '@libsql/client/web'
 
 import { users } from './schema.ts'
 import { hashPassword } from '../utils/password-hash.ts'

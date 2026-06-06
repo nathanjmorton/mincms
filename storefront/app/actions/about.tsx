@@ -38,9 +38,8 @@ export function AboutPage() {
 
         <h2 mix={css({ margin: '1.5rem 0 0.5rem' })}>Try It Out</h2>
         <p mix={css({ margin: '1rem 0' })}>
-          Explore the site to see all these features in action. You can browse books, create an
-          account, add items to your cart, and even access the admin panel (login as
-          admin@bookstore.com / admin123).
+          Explore the site to see all these features in action. You can browse the catalog and
+          blog (both managed in MinCMS), create an account, and add items to your cart.
         </p>
 
         <p mix={css({ marginTop: '2rem' })}>

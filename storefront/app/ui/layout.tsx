@@ -31,7 +31,6 @@ export function Layout(handle: Handle<LayoutProps>) {
               {user ? (
                 <>
                   <a href={routes.account.index.href()}>Account</a>
-                  {user.role === 'admin' ? <a href={routes.admin.index.href()}>Admin</a> : null}
                   <form
                     method="POST"
                     action={routes.auth.logout.href()}

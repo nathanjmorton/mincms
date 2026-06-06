@@ -13,10 +13,6 @@ import apiController from './actions/api/controller.tsx'
 import accountController from './actions/account/controller.tsx'
 import accountOrdersController from './actions/account/orders/controller.tsx'
 import accountSettingsController from './actions/account/settings/controller.tsx'
-import adminController from './actions/admin/controller.tsx'
-import adminBooksController from './actions/admin/books/controller.tsx'
-import adminOrdersController from './actions/admin/orders/controller.tsx'
-import adminUsersController from './actions/admin/users/controller.tsx'
 import authController from './actions/auth/controller.tsx'
 import authForgotPasswordController from './actions/auth/forgot-password/controller.tsx'
 import authLoginController from './actions/auth/login/controller.tsx'
@@ -35,7 +31,6 @@ import { loadDatabase } from './middleware/database.ts'
 import { loadAssetEntry } from './middleware/asset-entry.ts'
 import { render } from './middleware/render.tsx'
 import { sessionCookie, sessionStorage } from './middleware/session.ts'
-import { uploadHandler } from './middleware/uploads.ts'
 import { routes } from './routes.ts'
 
 type AppContext = MiddlewareContext<
@@ -77,7 +72,7 @@ export function createBookstoreRouter(options?: BookstoreRouterOptions) {
       lastModified: false,
     }),
   )
-  middleware.push(formData({ uploadHandler }))
+  middleware.push(formData())
   middleware.push(methodOverride())
   middleware.push(session(cookie, storage))
   middleware.push(asyncContext())
@@ -107,10 +102,6 @@ export function createBookstoreRouter(options?: BookstoreRouterOptions) {
   router.map(routes.account.settings, accountSettingsController)
   router.map(routes.account.orders, accountOrdersController)
   router.map(routes.checkout, checkoutController)
-  router.map(routes.admin, adminController)
-  router.map(routes.admin.books, adminBooksController)
-  router.map(routes.admin.users, adminUsersController)
-  router.map(routes.admin.orders, adminOrdersController)
 
   return router
 }

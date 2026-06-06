@@ -6,7 +6,7 @@ import { createHtmlResponse } from 'remix/response/html'
 import type { RemixNode } from 'remix/ui'
 import { renderToStream } from 'remix/ui/server'
 
-import { assetServer } from '../utils/assets.ts'
+import { resolveHref } from '../utils/asset-manifest.ts'
 
 export function render() {
   return renderWith(
@@ -22,7 +22,7 @@ export function render() {
               )
             }
             return {
-              href: await assetServer.getHref(entryId),
+              href: await resolveHref(entryId),
               exportName: entryId.split('#')[1] || component.name || titleCaseFileName(entryId),
             }
           },

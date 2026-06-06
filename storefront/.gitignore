@@ -6,3 +6,7 @@ db/*.sqlite-shm
 tmp/
 *.log
 .DS_Store
+
+# Vercel build output
+.vercel/
+asset-manifest.json

@@ -4,7 +4,6 @@ export const assetsBase = '/assets'
 
 export const routes = route({
   assets: `${assetsBase}/*path`,
-  uploads: '/uploads/*key',
   fragments: route('fragments', {
     cartButton: get('/cart-button/:bookId'),
     cartItems: get('/cart-items'),
@@ -75,25 +74,5 @@ export const routes = route({
     index: get('/'),
     action: post('/'),
     confirmation: get('/:orderId/confirmation'),
-  }),
-
-  // Admin section (protected, showcases full CRUD on multiple resources)
-  admin: route('admin', {
-    index: get('/'),
-
-    // Full CRUD on books
-    books: resources('books', { param: 'bookId' }),
-
-    // Partial CRUD on users (no create, users self-register)
-    users: resources('users', {
-      only: ['index', 'show', 'edit', 'update', 'destroy'],
-      param: 'userId',
-    }),
-
-    // Orders view-only
-    orders: resources('orders', {
-      only: ['index', 'show'],
-      param: 'orderId',
-    }),
   }),
 })
