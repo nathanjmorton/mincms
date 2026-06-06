@@ -1,0 +1,19 @@
+{
+  "name": "mincms-storefront",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.3.0"
+  },
+  "dependencies": {
+    "remix": "next"
+  },
+  "devDependencies": {
+    "@types/node": "^24.6.0"
+  },
+  "scripts": {
+    "dev": "NODE_ENV=development node --watch --import remix/node-tsx server.ts",
+    "start": "node --import remix/node-tsx server.ts",
+    "typecheck": "tsc --noEmit"
+  }
+}

@@ -1,0 +1,44 @@
+import type { Handle } from 'remix/ui'
+import { css } from 'remix/ui'
+
+import type { Book } from '../data/schema.ts'
+import { routes } from '../routes.ts'
+import type { Cart } from '../utils/cart.ts'
+import { BookCard } from '../ui/book-card.tsx'
+import { Layout } from '../ui/layout.tsx'
+
+interface HomePageProps {
+  featuredBooks: Book[]
+  cart: Cart
+}
+
+export function HomePage(handle: Handle<HomePageProps>) {
+  return () => {
+    let { featuredBooks, cart } = handle.props
+
+    return (
+      <Layout>
+        <div class="card">
+          <h1>Welcome to the MinCMS Store</h1>
+          <p mix={css({ margin: '1rem 0' })}>
+            Browse our catalog of handmade goods. Every product here is managed in MinCMS and
+            served live through its headless API.
+          </p>
+          <p>
+            <a href={routes.books.index.href()} class="btn">
+              Browse Products
+            </a>
+          </p>
+        </div>
+
+        <h2 mix={css({ margin: '2rem 0 1rem' })}>Featured Products</h2>
+        <div class="grid">
+          {featuredBooks.map((book) => {
+            let inCart = cart.items.some((item) => item.slug === book.slug)
+            return <BookCard book={book} inCart={inCart} />
+          })}
+        </div>
+      </Layout>
+    )
+  }
+}
